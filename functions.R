@@ -18,39 +18,33 @@ mk_dir <- function(dir_path){
 ##' @param ngen  number of mothers at timepoint i  
 ##' @return tibble with expression data for all simulated pups at timepoint i 
 ##' @export
-
 # Simulation of expression Data
 generate_timepoint <- function(i, intercept = 50, ngen = 3){
   
+  # generate mothers, mother effect and respective number of pups per timepoint
   gen.mother <- defData(varname = "mother", dist = "normal", formula = 0, 
                         variance = 5, id = "idMother")
   gen.mother <- defData(gen.mother, varname = "nPups", dist = "noZeroPoisson",
                         formula = 10)
-  
-  
   dtMother <- genData(ngen, gen.mother)
   
-  
-  
+  # generate expression data for all pups at timepoint with 
   dtPups <- genCluster(dtMother, cLevelVar = "idMother", numIndsVar = "nPups",
                        level1ID = "idPups")
-  
   gen.pup <- defDataAdd(varname = "gender", dist = "binary", 
                         formula = 0.5)
-  
   gen.pup <- defDataAdd(gen.pup, varname = "expression", dist = "normal", 
                         formula = str_c(intercept, " + mother"), 
                         variance = 2)
   
-  
   dtMice <- addColumns(gen.pup, dtPups) %>% as_tibble() 
   
-  # set zeros to have  no variance
+  # set intercept of zero to have no variance; all expression values to zero
   if(intercept == 0){
     dtMice$expression <- 0
   }
   
-  #clean data set
+  # clean data set
   dtMice <- dtMice %>% 
     select(expression, idMother, gender, group_id = idPups, efMother = mother) %>%
     mutate(idMother = (idMother + ngen*i - ngen), timepoint = i)
@@ -72,25 +66,20 @@ perform_analysis <- function(intercepts = rep(20, 12),
                              seedSet = 1308, 
                              filePath = "" ,
                              fileName = "ts_course", ...){
-  
+  # initialize a list to return all results
   outputAnalysis <- list()
   
+  #### Generate Time Points ####
+  # generate expression data for all timepoints in this scenario
   set.seed(seedSet)
   lsMice <- llply(1:length(intercepts), function(i)
     generate_timepoint(i, intercepts[i], ngen = 3))
+  
   
   dtMice <- bind_rows(lsMice) %>% 
     mutate(timepoint = as.factor(timepoint), idMother = as.factor(idMother))
   
   outputAnalysis$dataMice <- dtMice
-  
-  dtExp <- dtMice %>% group_by(timepoint) %>%
-    dplyr::select(timepoint, expression, group_id) %>% 
-    spread(key = timepoint, value = expression)%>% 
-    dplyr::select(-group_id) %>% 
-    t()
-  
-  outputAnalysis$dataExp <- dtExp
   
   p01 <- 
     ggplot(dtMice) + 
@@ -102,13 +91,13 @@ perform_analysis <- function(intercepts = rep(20, 12),
   
   ggsave(str_c(filePath, fileName, "_Base.png"), p01, width = 10, height = 7)
   
-  
-  ## linear mixed-effects model with mean parametrization
+  #### Analysis ####
+  #### linear mixed-effects model with mean parametrization ####
   lmer_fit <- lmer(expression ~ 0 + timepoint + (1 | idMother), dtMice)
   
   outputAnalysis$linMixMod <- lmer_fit
   
-  # multiple testing correction for change point 
+  #### contrast matrix with change point ####
   changepoint_contrast <- contrMat(n = as.numeric(table(dtMice$timepoint)),
                                    type = "Changepoint")
   
@@ -129,7 +118,7 @@ perform_analysis <- function(intercepts = rep(20, 12),
     labs(y = "Estimate", x = "", title = "95% family-wise confidence level\n(with contrast Changepoint)")
   ggsave(str_c(filePath, fileName, "_CP.png"), cp)
   
-  # multiple testing correction for Sequen (neigbhor comparison (-1,1))
+  #### contrast matrix with Sequen (neighbour comparison (-1,1)) ####
   sequen_contrast <- contrMat(n = as.numeric(table(dtMice$timepoint)),
                               type = "Sequen")
   
@@ -150,7 +139,7 @@ perform_analysis <- function(intercepts = rep(20, 12),
     labs(y = "Estimate", x = "", title = "95% family-wise confidence level\n(with contrast Sequen)")
   ggsave(str_c(filePath, fileName, "_Sequen.png"), sequen)
   
-  # multiple testing correction for McDermott
+  #### contrast matrix with McDermott ####
   mcdermott_contrast <- contrMat(n = as.numeric(table(dtMice$timepoint)), 
                                  type = "McDermott")
   
@@ -170,7 +159,12 @@ perform_analysis <- function(intercepts = rep(20, 12),
     labs(y = "Estimate", x = "", title = "95% family-wise confidence level\n(with contrast McDermott)")
   ggsave( str_c(filePath, fileName, "_McDermott.png"), mcd)
   
-  # combine all result plots into one
+  #### Plots ####
+  # combine all result per scenario plots into one
+  # a) general plot; 
+  # b) CI analysis with for change point contrast matrix;
+  # c) CI analysis with for Sequen contrast matrix;
+  # d) CI analysis with for McDermott contrast matrix;
   model_pl <- ggarrange(p01, cp, sequen, mcd, 
                         ncol=2, nrow=2,   legend="none", 
                         labels = c("a)", "b)", "c)", "d)"))

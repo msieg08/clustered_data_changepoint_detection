@@ -11,9 +11,13 @@ pacman::p_load(MASS,
                ggpubr, 
                broom)
 
+#### Set Path and Read in functions ####
+# Please adjust to own paths
 path_in <- ""
 source(str_c(path_in, "functions.R"))
 
+#### Intercepts ####
+# starting mean value for each time point for 11 different scenarios
 intercepts01 <- rep(25, 12)
 intercepts02 <- seq(16,39, 2)
 intercepts03 <- c(rep(25, 6), rep(35, 6))
@@ -30,11 +34,15 @@ intercepts <- list(intercepts01, intercepts02, intercepts03, intercepts04,
                     intercepts05, intercepts06, intercepts07, intercepts08, 
                     intercepts09, intercepts10, intercepts11)
 
+# Make Directories for Plots for each Scenario
+# Please adjust to own paths
 dirs_plot <- 
   str_c(path_in, "plots/course", 
         sprintf("%02d",1:length(intercepts)), "/")
 tmp <- llply(dirs_plot, mk_dir)
 
+#### Analysis ####
+# Changepoint detection for all selected scenarios
 analysis <- llply(1:length(intercepts), 
                   function(i){
                     perform_analysis(intercepts[i][[1]], 
