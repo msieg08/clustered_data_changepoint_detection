@@ -1,4 +1,5 @@
 # clustered_data_changepoint_detection
+This project provides the R code to our submitted paper regarding change point detection in short time series with clustered data. 
 
 ### changepoint_main.R 
 Setting the foundation for 11 example short time series (intercepts) and running the analysis.
